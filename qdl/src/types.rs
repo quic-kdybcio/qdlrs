@@ -73,7 +73,7 @@ impl Default for FirehoseConfiguration {
             xml_buf_size: 4096,
             storage_sector_size: 512,
             storage_type: FirehoseStorageType::Emmc,
-            bypass_storage: true,
+            bypass_storage: false,
             hash_packets: false,
             read_back_verify: false,
             backend: QdlBackend::default(),
