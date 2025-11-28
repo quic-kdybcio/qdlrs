@@ -166,7 +166,7 @@ where
 }
 
 /// Supported storage media types
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum FirehoseStorageType {
     Emmc,
     Ufs,
@@ -230,4 +230,48 @@ impl Display for FirehoseResetMode {
             FirehoseResetMode::Off => write!(f, "off"),
         }
     }
+}
+
+#[derive(Debug)]
+pub struct FirehoseUfsCommonConfig {
+    pub num_luns: u8,
+
+    pub boot_partition_en: bool,
+    pub descr_access_en: bool,
+    pub initial_power_mode: u8,
+    pub high_prio_lun: u8,
+    pub secure_removal_type: u8,
+    pub init_active_icc_level: u8,
+    pub periodic_rtc_update: u16,
+    pub hpb_control: Option<u8>,
+    pub config_descr_lock: bool,
+
+    pub write_booster_buf_preserve_userspace_en: Option<u8>,
+    pub write_booster_buf_type: Option<u8>,
+    pub shared_wb_buffer_size_in_kb: Option<u64>,
+    pub vendor_config_code: Option<u32>,
+}
+
+#[derive(Debug)]
+pub struct FirehoseUfsLunConfig {
+    pub lun_idx: u8,
+    pub enabled: u8,
+    pub use_for_boot: u8,
+    pub write_protect: u8,
+    pub memory_type: u8,
+    pub size_in_kb: u64,
+    pub reliable_writes: u8,
+    pub logical_block_size: u8,
+    pub provisioning_type: u8,
+    pub context_capabilities: u64,
+    pub wb_buffer_size_in_kb: Option<u64>,
+    pub max_active_hpb_regions: Option<u16>,
+    pub hpb_pinned_region_start_idx: Option<u16>,
+    pub num_hpb_pinned_regions: Option<u16>,
+}
+
+#[derive(Debug)]
+pub struct FirehoseUfsEpilogueConfig {
+    pub lun_to_grow: Option<String>,
+    pub commit: u32,
 }

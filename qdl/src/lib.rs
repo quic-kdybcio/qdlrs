@@ -19,6 +19,8 @@ use anyhow::bail;
 use pbr::{ProgressBar, Units};
 use xmltree::{self, Element, XMLNode};
 
+use crate::types::{FirehoseUfsCommonConfig, FirehoseUfsEpilogueConfig, FirehoseUfsLunConfig};
+
 pub mod parsers;
 pub mod sahara;
 #[cfg(feature = "serial")]
@@ -50,7 +52,7 @@ pub fn setup_target_device(
 }
 
 /// Wrapper for easily creating Firehose-y XML packets
-fn firehose_xml_setup(op: &str, kvps: &[(&str, &str)]) -> anyhow::Result<Vec<u8>> {
+fn firehose_xml_setup(op: &str, kvps: &[(&str, String)]) -> anyhow::Result<Vec<u8>> {
     let mut xml = Element::new("data");
     let mut op_node = Element::new(op);
     for kvp in kvps.iter() {
@@ -241,15 +243,9 @@ pub fn firehose_benchmark<T: QdlChan>(
     let mut xml = firehose_xml_setup(
         "benchmark",
         &[
-            ("trials", &trials.to_string()),
-            (
-                "TestWritePerformance",
-                &(test_write_perf as u32).to_string(),
-            ),
-            (
-                "TestReadPerformance",
-                &(!test_write_perf as u32).to_string(),
-            ),
+            ("trials", trials.to_string()),
+            ("TestWritePerformance", (test_write_perf as u32).to_string()),
+            ("TestReadPerformance", (!test_write_perf as u32).to_string()),
         ],
     )?;
 
@@ -277,22 +273,22 @@ pub fn firehose_configure<T: QdlChan>(
     let mut xml = firehose_xml_setup(
         "configure",
         &[
-            ("AckRawDataEveryNumPackets", "0"), // TODO: (low prio)
+            ("AckRawDataEveryNumPackets", "0".to_owned()), // TODO: (low prio)
             (
                 "SkipWrite",
-                &(channel.fh_config().bypass_storage as u32).to_string(),
+                (channel.fh_config().bypass_storage as u32).to_string(),
             ),
-            ("SkipStorageInit", &(skip_storage_init as u32).to_string()),
-            ("MemoryName", &config.storage_type.to_string()),
-            ("AlwaysValidate", &(config.hash_packets as u32).to_string()),
-            ("Verbose", &(config.verbose_firehose as u32).to_string()),
-            ("MaxDigestTableSizeInBytes", "8192"), // TODO: (low prio)
+            ("SkipStorageInit", (skip_storage_init as u32).to_string()),
+            ("MemoryName", config.storage_type.to_string()),
+            ("AlwaysValidate", (config.hash_packets as u32).to_string()),
+            ("Verbose", (config.verbose_firehose as u32).to_string()),
+            ("MaxDigestTableSizeInBytes", "8192".to_owned()), // TODO: (low prio)
             (
                 "MaxPayloadSizeToTargetInBytes",
-                &config.send_buffer_size.to_string(),
+                config.send_buffer_size.to_string(),
             ),
             // Zero-length-packet aware host
-            ("ZLPAwareHost", "1"),
+            ("ZLPAwareHost", "1".to_owned()),
         ],
     )?;
 
@@ -301,7 +297,7 @@ pub fn firehose_configure<T: QdlChan>(
 
 /// Do nothing, hopefully succesfully
 pub fn firehose_nop<T: QdlChan>(channel: &mut T) -> anyhow::Result<()> {
-    let mut xml = firehose_xml_setup("nop", &[("value", "ping")])?;
+    let mut xml = firehose_xml_setup("nop", &[("value", "ping".to_owned())])?;
 
     firehose_write_getack(channel, &mut xml, "issue a NOP".to_owned())
 }
@@ -314,7 +310,7 @@ pub fn firehose_get_storage_info<T: QdlChan>(
 ) -> anyhow::Result<()> {
     let mut xml = firehose_xml_setup(
         "getstorageinfo",
-        &[("physical_partition_number", &phys_part_idx.to_string())],
+        &[("physical_partition_number", phys_part_idx.to_string())],
     )?;
 
     firehose_write(channel, &mut xml)?;
@@ -337,15 +333,15 @@ pub fn firehose_patch<T: QdlChan>(
         &[
             (
                 "SECTOR_SIZE_IN_BYTES",
-                &channel.fh_config().storage_sector_size.to_string(),
+                channel.fh_config().storage_sector_size.to_string(),
             ),
-            ("byte_offset", &byte_off.to_string()),
-            ("filename", "DISK"), // DISK means "patch device's storage"
-            ("slot", &slot.to_string()),
-            ("physical_partition_number", &phys_part_idx.to_string()),
-            ("size_in_bytes", &size.to_string()),
-            ("start_sector", start_sector),
-            ("value", val),
+            ("byte_offset", byte_off.to_string()),
+            ("filename", "DISK".to_owned()), // DISK means "patch device's storage"
+            ("slot", slot.to_string()),
+            ("physical_partition_number", phys_part_idx.to_string()),
+            ("size_in_bytes", size.to_string()),
+            ("start_sector", start_sector.to_owned()),
+            ("value", val.to_owned()),
         ],
     )?;
 
@@ -370,8 +366,8 @@ pub fn firehose_peek<T: QdlChan>(
     let mut xml: Vec<u8> = firehose_xml_setup(
         "peek",
         &[
-            ("address64", &addr.to_string()),
-            ("size_in_bytes", &byte_count.to_string()),
+            ("address64", addr.to_string()),
+            ("size_in_bytes", byte_count.to_string()),
         ],
     )?;
 
@@ -391,9 +387,9 @@ pub fn firehose_poke<T: QdlChan>(
     let mut xml: Vec<u8> = firehose_xml_setup(
         "poke",
         &[
-            ("address64", &addr.to_string()),
-            ("size_in_bytes", &byte_count.to_string()),
-            ("value", &val.to_string()),
+            ("address64", addr.to_string()),
+            ("size_in_bytes", byte_count.to_string()),
+            ("value", val.to_string()),
         ],
     )?;
 
@@ -416,15 +412,15 @@ pub fn firehose_program_storage<T: QdlChan>(
         &[
             (
                 "SECTOR_SIZE_IN_BYTES",
-                &channel.fh_config().storage_sector_size.to_string(),
+                channel.fh_config().storage_sector_size.to_string(),
             ),
-            ("num_partition_sectors", &num_sectors.to_string()),
-            ("slot", &slot.to_string()),
-            ("physical_partition_number", &phys_part_idx.to_string()),
-            ("start_sector", start_sector),
+            ("num_partition_sectors", num_sectors.to_string()),
+            ("slot", slot.to_string()),
+            ("physical_partition_number", phys_part_idx.to_string()),
+            ("start_sector", start_sector.to_owned()),
             (
                 "read_back_verify",
-                &(channel.fh_config().read_back_verify as u32).to_string(),
+                (channel.fh_config().read_back_verify as u32).to_string(),
             ),
         ],
     )?;
@@ -487,11 +483,11 @@ pub fn firehose_checksum_storage<T: QdlChan>(
         &[
             (
                 "SECTOR_SIZE_IN_BYTES",
-                &channel.fh_config().storage_sector_size.to_string(),
+                channel.fh_config().storage_sector_size.to_string(),
             ),
-            ("num_partition_sectors", &num_sectors.to_string()),
-            ("physical_partition_number", &phys_part_idx.to_string()),
-            ("start_sector", &start_sector.to_string()),
+            ("num_partition_sectors", num_sectors.to_string()),
+            ("physical_partition_number", phys_part_idx.to_string()),
+            ("start_sector", start_sector.to_string()),
         ],
     )?;
 
@@ -520,12 +516,12 @@ pub fn firehose_read_storage(
         &[
             (
                 "SECTOR_SIZE_IN_BYTES",
-                &channel.fh_config().storage_sector_size.to_string(),
+                channel.fh_config().storage_sector_size.to_string(),
             ),
-            ("num_partition_sectors", &num_sectors.to_string()),
-            ("slot", &slot.to_string()),
-            ("physical_partition_number", &phys_part_idx.to_string()),
-            ("start_sector", &start_sector.to_string()),
+            ("num_partition_sectors", num_sectors.to_string()),
+            ("slot", slot.to_string()),
+            ("physical_partition_number", phys_part_idx.to_string()),
+            ("start_sector", start_sector.to_string()),
         ],
     )?;
 
@@ -581,12 +577,12 @@ pub fn firehose_reset<T: QdlChan>(
             (
                 "value",
                 match mode {
-                    FirehoseResetMode::ResetToEdl => "reset_to_edl",
-                    FirehoseResetMode::Reset => "reset",
-                    FirehoseResetMode::Off => "off",
+                    FirehoseResetMode::ResetToEdl => "reset_to_edl".to_owned(),
+                    FirehoseResetMode::Reset => "reset".to_owned(),
+                    FirehoseResetMode::Off => "off".to_owned(),
                 },
             ),
-            ("DelayInSeconds", &delay_in_sec.to_string()),
+            ("DelayInSeconds", delay_in_sec.to_string()),
         ],
     )?;
 
@@ -602,7 +598,7 @@ pub fn firehose_reset<T: QdlChan>(
 pub fn firehose_set_bootable<T: QdlChan>(channel: &mut T, drive_idx: u8) -> anyhow::Result<()> {
     let mut xml = firehose_xml_setup(
         "setbootablestoragedrive",
-        &[("value", &drive_idx.to_string())],
+        &[("value", drive_idx.to_string())],
     )?;
 
     firehose_write_getack(
@@ -620,4 +616,131 @@ pub fn firehose_get_default_sector_size(t: &str) -> Option<usize> {
         FirehoseStorageType::Ufs => Some(4096),
         FirehoseStorageType::Spinor => Some(4096),
     }
+}
+
+pub fn firehose_ufs_common<T: QdlChan>(
+    channel: &mut T,
+    cfg: FirehoseUfsCommonConfig,
+    allow_final_provisioning: bool,
+) -> anyhow::Result<()> {
+    let mut final_provisioning = false;
+
+    if cfg.config_descr_lock {
+        if allow_final_provisioning {
+            println!("Performing OTP UFS provisioning");
+            bail!("xyz");
+            final_provisioning = cfg.config_descr_lock;
+        } else {
+            println!(
+                "Final, irreversible UFS provisioning requested, but not allowed by program configuration. OTP skipped."
+            );
+        }
+    }
+
+    // Don't send writebooster properties if absent
+    let mut kvps: Vec<(&str, String)> = vec![
+        ("bNumberLU", cfg.num_luns.to_string()),
+        ("bBootEnable", (cfg.boot_partition_en as u32).to_string()),
+        ("bDescrAccessEn", (cfg.descr_access_en as u32).to_string()),
+        ("bInitPowerMode", cfg.initial_power_mode.to_string()),
+        ("bHighPriorityLUN", cfg.high_prio_lun.to_string()),
+        ("bSecureRemovalType", cfg.secure_removal_type.to_string()),
+        ("bInitActiveICCLevel", cfg.init_active_icc_level.to_string()),
+        ("wPeriodicRTCUpdate", cfg.periodic_rtc_update.to_string()),
+        ("bConfigDescrLock", (final_provisioning as u32).to_string()),
+        // ("LUNtoGrow", cfg.lun_to_grow.to_string()),
+    ];
+
+    if let Some(write_booster_buf_preserve_userspace_en) =
+        cfg.write_booster_buf_preserve_userspace_en
+    {
+        kvps.push((
+            "bWriteBoosterBufferPreserveUserSpaceEn",
+            write_booster_buf_preserve_userspace_en.to_string(),
+        ));
+    }
+    if let Some(write_booster_buf_type) = cfg.write_booster_buf_type {
+        kvps.push((
+            "bWriteBoosterBufferType",
+            write_booster_buf_type.to_string(),
+        ));
+    }
+    if let Some(shared_wb_buffer_size_in_kb) = cfg.shared_wb_buffer_size_in_kb {
+        kvps.push((
+            "shared_wb_buffer_size_in_kb",
+            shared_wb_buffer_size_in_kb.to_string(),
+        ));
+    }
+
+    // Additional non-writebooster optional props
+    if let Some(hpb_control) = cfg.hpb_control {
+        kvps.push(("bHPBControl", hpb_control.to_string()));
+    }
+    if let Some(vendor_config_code) = cfg.vendor_config_code {
+        kvps.push(("qVendorConfigCode", vendor_config_code.to_string()));
+    }
+
+    firehose_write_getack(
+        channel,
+        &mut firehose_xml_setup("ufs", &kvps)?,
+        format!("set common UFS parameters: {:?}", cfg),
+    )
+}
+
+pub fn firehose_ufs_lun<T: QdlChan>(
+    channel: &mut T,
+    cfg: FirehoseUfsLunConfig,
+) -> anyhow::Result<()> {
+    // Don't send writebooster properties if absent
+    let mut kvps = vec![
+        ("LUNum", cfg.lun_idx.to_string()),
+        ("bLUEnable", cfg.enabled.to_string()),
+        ("bBootLunID", cfg.use_for_boot.to_string()),
+        ("bLUWriteProtect", cfg.write_protect.to_string()),
+        ("bMemoryType", cfg.memory_type.to_string()),
+        ("size_in_kb", cfg.size_in_kb.to_string()),
+        ("bDataReliability", cfg.reliable_writes.to_string()),
+        ("bLogicalBlockSize", cfg.logical_block_size.to_string()),
+        ("bProvisioningType", cfg.provisioning_type.to_string()),
+        ("wContextCapabilities", cfg.context_capabilities.to_string()),
+    ];
+
+    if let Some(wb_buffer_size_in_kb) = cfg.wb_buffer_size_in_kb {
+        kvps.push(("wb_buffer_size_in_kb", wb_buffer_size_in_kb.to_string()));
+    }
+    if let Some(max_active_hpb_regions) = cfg.max_active_hpb_regions {
+        kvps.push(("wLUMaxActiveHPBRegions", max_active_hpb_regions.to_string()));
+    }
+    if let Some(hpb_pinned_region_start_idx) = cfg.hpb_pinned_region_start_idx {
+        kvps.push((
+            "wHPBPinnedRegionStartIdx",
+            hpb_pinned_region_start_idx.to_string(),
+        ));
+    }
+    if let Some(num_hpb_pinned_regions) = cfg.num_hpb_pinned_regions {
+        kvps.push(("wNumHPBPinnedRegions", num_hpb_pinned_regions.to_string()));
+    }
+
+    firehose_write_getack(
+        channel,
+        &mut firehose_xml_setup("ufs", &kvps)?,
+        format!("set UFS LUN parameters: {:?}", cfg),
+    )
+}
+
+pub fn firehose_ufs_epilogue<T: QdlChan>(
+    channel: &mut T,
+    cfg: FirehoseUfsEpilogueConfig,
+) -> anyhow::Result<()> {
+    let mut kvps = vec![("commit", cfg.commit.to_string())];
+
+    if let Some(ref lun) = cfg.lun_to_grow {
+        kvps.push(("LUNtoGrow", lun.to_string()));
+    }
+
+    firehose_write_getack(
+        channel,
+        &mut firehose_xml_setup("ufs", &kvps)?,
+        format!("set UFS epilogue: {:?}", cfg),
+    )
 }
