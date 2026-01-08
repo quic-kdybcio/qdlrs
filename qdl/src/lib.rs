@@ -288,7 +288,7 @@ pub fn firehose_configure<T: QdlChan>(
                 config.send_buffer_size.to_string(),
             ),
             // Zero-length-packet aware host
-            ("ZLPAwareHost", "1".to_owned()),
+            ("ZlpAwareHost", "1".to_owned()),
         ],
     )?;
 
